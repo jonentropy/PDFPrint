@@ -25,8 +25,10 @@ unit Main;
 interface
 
 uses
+  Windows,
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs,
-  ExtCtrls, GhostScript, Printers, Buttons, PrintersDlgs;
+  ExtCtrls, GhostScript, Printers, Buttons, PrintersDlgs, WinSpool,
+  IntfGraphics;
 
 type
 
@@ -35,9 +37,9 @@ type
   TfrmMain = class(TForm)
     btnPrint: TBitBtn;
     dlgOpenFile: TOpenDialog;
-    dlgPageSetup: TPageSetupDialog;
     Image1: TImage;
     Panel1: TPanel;
+    dlgPrinterSetup: TPrinterSetupDialog;
     tmrPrint: TTimer;
     procedure btnPrintClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -56,7 +58,9 @@ type
     FResolution: integer;
 
     procedure AutoPrint;
+    procedure GreyScaleImage(Image: TBitmap);
     procedure gsOnPageGenerated(page:integer);
+    function IsColourPrinter(PrinterName: string): boolean;
     procedure Print(Filename: string);
   public
     { public declarations }
@@ -73,7 +77,7 @@ implementation
 
 procedure TfrmMain.btnPrintClick(Sender: TObject);
 begin
-  if dlgOpenFile.Execute and dlgPageSetup.Execute then
+  if dlgOpenFile.Execute and dlgPrinterSetup.Execute then
   begin
     Print(dlgOpenFile.FileName);
   end;
@@ -94,7 +98,7 @@ begin
 
   FPrinterDialog := False;
   FFromPage := 1;
-  FToPage := 1000;
+  FToPage := 9999;
   FPrinterName := '';
   FSilent := False;
   FFilename := '';
@@ -186,7 +190,7 @@ begin
 
   if FPrinterDialog then
   begin
-    if not dlgPageSetup.Execute then
+    if not dlgPrinterSetup.Execute then
       Halt;
   end;
 
@@ -247,6 +251,9 @@ begin
   begin
     Image := gs.Page[page];
 
+    if not IsColourPrinter(Printer.Printers[Printer.PrinterIndex]) then
+      GreyScaleImage(Image);
+
     if not FSilent then
     begin
       if not Image1.Stretch then
@@ -262,6 +269,7 @@ begin
     PWidth := Printer.PageWidth;
     PHeight := Printer.PageHeight;
 
+    Printer.PrinterType ;
     Printer.Canvas.StretchDraw(Rect(0, 0, PWidth - 1,
       PHeight - 1), Image);
 
@@ -270,6 +278,107 @@ begin
 
   gs.ClearPages;
 end;
+
+// Convert image to grey scale image.
+// Only supports 24 and 32 bit images.
+procedure TfrmMain.GreyScaleImage(Image: TBitmap);
+var
+  PSrc, PDst: PByte;
+  R, G, B, C: Integer;
+  SrcIntfImg: TLazIntfImage;
+  ImgHandle, ImgMaskHandle: HBitmap;
+  i, j: Integer;
+begin
+  // Can not access bitmap pixel data directly,
+  // need to use TLazIntfImage to get at it.
+  if Image.PixelFormat in [pf24bit, pf32bit] then
+  begin
+    SrcIntfImg:=TLazIntfImage.Create(0,0);
+    SrcIntfImg.LoadFromBitmap(Image.Handle,Image.MaskHandle);
+    Image.FreeImage;
+    PSrc := SrcIntfImg.PixelData;
+    PDst := SrcIntfImg.PixelData;
+
+    for i:=0 to SrcIntfImg.Height-1 do
+    begin
+      for j:=0 to SrcIntfImg.Width-1 do
+      begin
+        B := PSrc^;
+        Inc(PSrc);
+        G := PSrc^;
+        Inc(PSrc);
+        R := PSrc^;
+        Inc(PSrc);
+
+        // 32 bit images
+        if Image.PixelFormat = pf32bit then
+          Inc(PSrc);
+
+        // Calculate grey level
+        C := Round(R * 0.3 + G * 0.6 + B * 0.1);
+
+        PDst^ := C;
+        Inc(PDst);
+        PDst^ := C;
+        Inc(PDst);
+        PDst^ := C;
+        Inc(PDst);
+
+        // 32 bit images
+        if Image.PixelFormat = pf32bit then
+          Inc(PSrc);
+      end;
+    end;
+
+    SrcIntfImg.CreateBitmaps(ImgHandle, ImgMaskHandle, False);
+    Image.BitmapHandle := ImgHandle;
+    Image.MaskHandle := ImgMaskHandle;
+    SrcIntfImg.Free;
+  end;
+end;
+
+function TfrmMain.IsColourPrinter(PrinterName: string): boolean;
+var
+  PDev: PChar;
+  PDevW: PWideChar;
+  DM1: LPDEVMODEW;
+  DM2: LPDEVMODEW;
+  Sz: Integer;
+begin
+  Result := True;
+
+  GetMem(PDev, 512);
+  GetMem(PDevW, 1024);
+  FillChar(PDev^, 512, 0);
+  FillChar(PDevW^, 1024, 0);
+
+  StrPCopy(PDev, PrinterName);
+  UTF8ToUnicode(PDevW, PDev, 512);
+
+  DM1 := nil;
+  DM2 := nil;
+  Sz  := DocumentProperties(0, 0, PDevW, DM1, DM2, 0);
+
+  if Sz > 0 then
+  begin
+    GetMem(DM1, Sz);
+    DocumentProperties(0, 0, PDevW, DM1, DM2, DM_OUT_BUFFER);
+  {
+    if DM1^.dmColor > 1 then
+      label1.Caption := PDev + ': Color'
+    else
+      label1.Caption := PDev + ': Black and White';
+  }
+    if DM1^.dmFields and DM_Color <> 0 then Result := True
+    else Result := False;
+
+    FreeMem(DM1);
+  end;
+
+  FreeMem(PDevW);
+  FreeMem(PDev);
+end;
+
 
 end.
 

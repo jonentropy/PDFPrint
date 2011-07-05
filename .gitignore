@@ -5,3 +5,5 @@ PDFPrint.exe
 PDFPrint
 PDFPrint.app/
 cidfmap
+*.bak
+

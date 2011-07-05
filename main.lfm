@@ -453,15 +453,15 @@ object frmMain: TfrmMain
     left = 32
     top = 176
   end
-  object dlgPageSetup: TPageSetupDialog
-    left = 144
-    top = 120
-  end
   object tmrPrint: TTimer
     Enabled = False
-    Interval = 2000
+    Interval = 1
     OnTimer = tmrPrintTimer
     left = 32
+    top = 16
+  end
+  object dlgPrinterSetup: TPrinterSetupDialog
+    left = 72
     top = 16
   end
 end
