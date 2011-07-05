@@ -17,8 +17,9 @@ and gsapi.pas, which are Copyright (c) 2001-2002 Alessandro Briosi
 Building
 --------
 
-PDFPrint will build with Lazarus 0.9.30 or later, and requires no additional 
-components or libraries.
+PDFPrint will build with Lazarus 0.9.30, fpc 2.4.2 or later, and requires no 
+additional components or libraries, except for winspool.pp, which is included. 
+winspool.pp is taken from fpc 2.2.4.
 
 Dependencies
 ------------
