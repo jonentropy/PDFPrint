@@ -1,5 +1,6 @@
 {
   Copyright Shaun Simpson 2011
+  Copyright Tristan Linnell 2011
 
   This file is part of PDFPrint.
 
