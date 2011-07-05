@@ -1,0 +1,61 @@
+PDFPrint
+--------
+
+This is a command-line, and GUI application for printing PDF files,
+written in Lazarus/Freepascal.
+
+It is potentially cross-platform, although has only been designed
+for Windows so far.
+
+Copyright 2011 Shaun Simpson
+Copyright 2011 Tristan Linnell
+
+This project contains modified versions of the files gsimage.pas, GhostScript.pas 
+and gsapi.pas, which are Copyright (c) 2001-2002 Alessandro Briosi
+
+
+Building
+--------
+
+PDFPrint will build with Lazarus 0.9.30 or later, and requires no additional 
+components or libraries.
+
+Dependencies
+------------
+
+In order to use PDFPrint, you will need to obtain a copy of gsdll32.dll from the
+GPL Ghostscript project and copy the file into the same directory.  If you require,
+you can also add a cidfmap file to the program directory.
+
+
+Usage
+-----
+
+Command-line interface:
+
+pdfprint [options] filename
+
+This will print a file to the default printer.
+
+Optional command line options:
+
+-from NN		First page to print.	
+
+-to NN			Last page to print.
+
+-resolution		Set the the DPI of the output.
+
+-printer "name"  Name of the printer to use.
+
+-dialog		Display printer setup dialog. 
+
+-silent			Hide the GUI.
+
+
+GUI Usage:
+
+To use the GUI launch the application without any parameters. The GUI is very simplistic and 
+contains a single button which uses a dialog to open a file, displays the printer setup dialog 
+and then prints the file.
+
+
