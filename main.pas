@@ -28,7 +28,7 @@ uses
   Windows,
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs,
   ExtCtrls, GhostScript, Printers, Buttons, PrintersDlgs, WinSpool,
-  IntfGraphics;
+  IntfGraphics, gsapi, OSPrinters;
 
 type
 
@@ -56,12 +56,16 @@ type
     FPrinterName, FFilename: string;
     FSilent: boolean;
     FResolution: integer;
+    FDetectPostScript: boolean;
 
     procedure AutoPrint;
     procedure GreyScaleImage(Image: TBitmap);
     procedure gsOnPageGenerated(page:integer);
+    function IsPsPrinter: Boolean;
+    procedure PdfToPs(Input, Output: string);
     function IsColourPrinter(PrinterName: string): boolean;
     procedure Print(Filename: string);
+    procedure PsPrint(Filename: string);
   public
     { public declarations }
   end; 
@@ -103,12 +107,14 @@ begin
   FSilent := False;
   FFilename := '';
   FResolution := 300;
+  FDetectPostScript := False;
 
   i := 1;
   while i < ParamCount do
   begin
     Param := ParamStr(i);
 
+    // First page number
     if Pos('-from',LowerCase(Param)) = 1 then
     begin
       try
@@ -118,6 +124,7 @@ begin
       end;
     end;
 
+    // Last page number
     if Pos('-to',LowerCase(Param)) = 1 then
     begin
       try
@@ -127,6 +134,7 @@ begin
       end;
     end;
 
+    // Resolution to use, 0 uses native printer resolution
     if Pos('-resolution',LowerCase(Param)) = 1 then
     begin
       try
@@ -136,6 +144,7 @@ begin
       end;
     end;
 
+    // Printer name
     if Pos('-printer',LowerCase(Param)) = 1 then
     begin
       try
@@ -146,6 +155,7 @@ begin
       end;
     end;
 
+    // Show printer dialog
     if LowerCase(Param) = '-dialog' then
     begin
       try
@@ -154,6 +164,7 @@ begin
       end;
     end;
 
+    // HIde GUI
     if LowerCase(Param) = '-silent' then
     begin
       try
@@ -162,10 +173,20 @@ begin
       end;
     end;
 
+    // Only send PostScript to the printer if it is detected
+    // that the printer supports PostScript
+    if LowerCase(Param) = '-safe-ps' then
+    begin
+      try
+        FDetectPostscript := True;
+      except
+      end;
+    end;
+
     Inc(i);
   end;
 
-  if ParamCount > 1 then
+  if ParamCount > 0 then
   begin
     FFilename := ParamStr(ParamCount);
     FFilename := StringReplace(FFilename, '"', '', [rfReplaceAll, rfIgnoreCase]);
@@ -203,7 +224,7 @@ begin
   if FFilename <> '' then
   begin
     tmrPrint.Enabled := True;
-    btnPrint.Visible := True;
+    btnPrint.Visible := False;
     Self.Panel1.Align := alClient;
     Self.BorderStyle := bsNone;
     tmrPrint.Enabled := True;
@@ -224,20 +245,77 @@ begin
   FPDFPage := 0;
   FPrintedPages := 0;
 
-  if FResolution < 75 then
-    gs.Resolution := Printer.XDPI
+  if not FDetectPostscript or IsPsPrinter then
+  begin
+    PsPrint(Filename)
+  end
   else
+  begin
+    if FResolution < 75 then
+      FResolution := Printer.XDPI;
+
     gs.Resolution := FResolution;
 
-  Printer.BeginDoc;
+    Printer.BeginDoc;
 
-  gs.gsOpen;
-  gs.gsInit(Filename);
-  gs.LoadFile(Filename,true);
-  gs.gsExit;
-  gs.gsClose;
+    gs.gsOpen;
+    gs.gsInit(Filename);
+    gs.LoadFile(Filename,true);
+    gs.gsExit;
+    gs.gsClose;
 
-  Printer.EndDoc;
+    Printer.EndDoc;
+  end;
+end;
+
+procedure TfrmMain.PsPrint(Filename: string);
+var
+  PrintFile: TFileStream;
+  Buffer: array [0..4095] of byte;
+  Bytes: integer;
+  TempFilename: string;
+  h, m, s, ms: word;
+begin
+  DecodeTime(Now, h, m, s, ms);
+  TempFilename := GetTempDir(False);
+
+  if (TempFilename = '') or not DirectoryExists(TempFilename) then
+    TempFilename := GetAppConfigDir(False);
+
+  TempFilename := TempFilename + Format('%d%d%d%d%d.ps', [h, m, s, ms, Random(100000)]);
+
+  PdfToPs(Filename, TempFilename);
+
+  try
+    PrintFile := TFileStream.Create(TempFilename, fmOpenRead);
+  except
+    MessageDlg('Postscript Error', 'Error writing Postscript file '
+      + TempFilename + '.', mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  try
+    Printer.Title := ExtractFilename(Filename);
+
+    Printer.RawMode := True;
+
+    Printer.BeginDoc;
+
+    repeat
+      Bytes := PrintFile.Read(Buffer, Length(Buffer));
+      Printer.Write(Buffer, Bytes, Bytes);
+    until Bytes <> Length(Buffer);
+
+    Printer.EndDoc;
+    Printer.RawMode := False;
+
+    DeleteFile(TempFilename);
+  except
+    MessageDlg('Postscript Error', 'Error writing Postscript file '
+      + TempFilename + '.', mtError, [mbOK], 0);
+  end;
+
+  PrintFile.Free;
 end;
 
 procedure TfrmMain.gsOnPageGenerated(Page: integer);
@@ -363,12 +441,7 @@ begin
   begin
     GetMem(DM1, Sz);
     DocumentProperties(0, 0, PDevW, DM1, DM2, DM_OUT_BUFFER);
-  {
-    if DM1^.dmColor > 1 then
-      label1.Caption := PDev + ': Color'
-    else
-      label1.Caption := PDev + ': Black and White';
-  }
+
     if DM1^.dmFields and DM_Color <> 0 then Result := True
     else Result := False;
 
@@ -379,6 +452,88 @@ begin
   FreeMem(PDev);
 end;
 
+// Check if printer supports Postscript
+// Does not seem reliable
+function TfrmMain.IsPsPrinter: Boolean;
+const
+  POSTSCRIPT_PASSTHROUGH = 4115;
+  POSTSCRIPT_IDENTIFY = 4117;
+  POSTSCRIPT_DATA = 37;
+  ENCAPSULATED_POSTSCRIPT = 4116;
+  POSTSCRIPT_INJECTION = 4118;
+  GET_PS_FEATURESETTING = 4121;
+
+
+  Escapes: array[0..4] of Cardinal =
+  (POSTSCRIPT_DATA, POSTSCRIPT_IDENTIFY, POSTSCRIPT_PASSTHROUGH, ENCAPSULATED_POSTSCRIPT, POSTSCRIPT_INJECTION);
+var
+  res: Integer;
+  i, Output: Integer;
+
+begin
+  Result := False;
+  for i := 1 to High(Escapes) do
+  begin
+    res := ExtEscape(TWinPrinter(Printer).Handle,
+      QUERYESCSUPPORT, sizeof(Escapes[0]), @Escapes[i], 0, nil);
+
+    if res <> 0 then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+procedure TfrmMain.PdfToPs(Input, Output: string);
+var
+  argv:PPChar;
+  p1, p2:string;
+  dformat:String;
+  ddevice:String;
+  Arg: array [1..9] of string;
+  i, code:integer;
+  instance:Pointer;
+begin
+  SetLength(argv,10);
+
+  p1:=ParamStr(0); // program name
+  argv[0] :=  PChar(p1);
+  p2 := '-I' + ExcludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + '' + #0;
+  Arg[1] := p2;
+  Arg[2] := '-dNOPAUSE' + #0;
+  Arg[3] := '-dBATCH' + #0;
+  Arg[4] := '-dFirstPage=' + IntToStr(FFromPage) + #0;
+  Arg[5] := '-dLastPage=' + intToStr(FToPage) + #0;
+  Arg[6] := '-sDEVICE=pswrite' + #0;
+  Arg[7] := '-sOutputFile=' + Output + #0;
+  Arg[8] := '-f' + #0;
+  Arg[9] := Input + #0;
+
+  for i := 1 to High(Arg) do
+  begin
+    argv[i]:=PChar(Arg[i]);
+  end;
+
+  try
+    // Initializes the instance
+    code:=gsapi_new_instance(@instance,nil);
+    if code<>0 then
+      raise Exception.Create('Impossible to open an instance of ghostscript. Error code: '+IntToStr(code));
+
+    code:=gsapi_init_with_args(instance, length(argv), argv);
+    if code<0 then
+      raise Exception.Create('ERROR: init_args: '+IntToStr(code));
+  except
+    raise Exception.Create('ERROR: init_args: Access violation. Something went wrong.');
+  end;
+
+  try
+    gsapi_exit(instance);
+    gsapi_delete_instance(instance);
+  except;
+  end;
+end;
 
 end.
 

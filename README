@@ -2,7 +2,8 @@ PDFPrint
 --------
 
 This is a command-line, and GUI application for printing PDF files,
-written in Lazarus/Freepascal.
+written in Lazarus/Freepascal. It allows you to easily include PDF
+printing in your Windows applications and scripts.
 
 It is potentially cross-platform, although has only been designed
 for Windows so far.
@@ -40,18 +41,19 @@ This will print a file to the default printer.
 
 Optional command line options:
 
--from NN		First page to print.	
+-from NN			First page to print.	
 
--to NN			Last page to print.
+-to NN				Last page to print.
 
--resolution		Set the the DPI of the output.
+-resolution	NN		Set the the DPI of the output. Only used for non PostScript printing.
 
--printer "name"  Name of the printer to use.
+-printer "name"  	Name of the printer to use.
 
--dialog		Display printer setup dialog. 
+-dialog				Display printer setup dialog. 
 
--silent			Hide the GUI.
+-silent				Hide the GUI.
 
+-safe-ps			Detect if the printer supports PostScript.
 
 GUI Usage:
 
