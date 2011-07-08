@@ -107,7 +107,7 @@ begin
   FSilent := False;
   FFilename := '';
   FResolution := 300;
-  FDetectPostScript := False;
+  FDetectPostScript := True;
 
   i := 1;
   while i < ParamCount do
@@ -173,12 +173,11 @@ begin
       end;
     end;
 
-    // Only send PostScript to the printer if it is detected
-    // that the printer supports PostScript
-    if LowerCase(Param) = '-safe-ps' then
+    // Force sending PostScript, bypass PostScript support detection.
+    if LowerCase(Param) = '-force-ps' then
     begin
       try
-        FDetectPostscript := True;
+        FDetectPostscript := False;
       except
       end;
     end;

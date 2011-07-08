@@ -45,15 +45,15 @@ Optional command line options:
 
 -to NN				Last page to print.
 
--resolution	NN		Set the the DPI of the output. Only used for non PostScript printing.
+-resolution NN		Set the the DPI of the output (default 300).
 
--printer "name"  	Name of the printer to use.
+-printer "name"	Name of the printer to use.
 
 -dialog				Display printer setup dialog. 
 
 -silent				Hide the GUI.
 
--safe-ps			Detect if the printer supports PostScript.
+-force-ps			Force PostScript printing.
 
 GUI Usage:
 
