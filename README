@@ -14,6 +14,7 @@ Copyright 2011 Tristan Linnell
 This project contains modified versions of the files gsimage.pas, GhostScript.pas 
 and gsapi.pas, which are Copyright (c) 2001-2002 Alessandro Briosi
 
+A precompiled binary for Windows (32-bit) can be found in the Downloads section above.
 
 Building
 --------
